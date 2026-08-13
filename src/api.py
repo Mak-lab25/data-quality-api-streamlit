@@ -27,3 +27,15 @@ def get_visitors(day: date) -> dict:
     """
     total_visitors = sum(sensor.get_visitors(day, hour) for hour in range(24))
     return {"day": day.isoformat(), "visitors": total_visitors}
+
+@app.get("/visitors_hourly")
+def get_visitors_hourly(day: date) -> list[dict]:
+    """
+    Renvoie le détail heure par heure du nombre de visiteurs pour une date donnée.
+
+    Exemple : GET /visitors_hourly?day=2026-08-13
+    """
+    return [
+        {"hour": hour, "visitors": sensor.get_visitors(day, hour)}
+        for hour in range(24)
+    ]
