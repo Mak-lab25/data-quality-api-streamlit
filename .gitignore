@@ -1,0 +1,13 @@
+# Data files
+*.csv
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+.env
+
+# IDE
+.vscode/
+.idea/
