@@ -24,11 +24,22 @@ def parse_start_date(args: list[str]) -> date:
         sys.exit(1)
 
 
-def fetch_visitors(day: date) -> int:
-    """Interroge l'API fournisseur pour récupérer le nombre de visiteurs d'un jour donné."""
-    response = requests.get(API_URL, params={"day": day.isoformat()})
+def query_api(url: str, params: dict | None = None) -> dict:
+    """
+    Fonction générique : interroge n'importe quelle API REST en GET
+    et renvoie sa réponse JSON. Ne connaît rien de l'API appelée
+    (ni son domaine métier, ni sa structure de réponse) : c'est le
+    rôle de l'appelant d'interpréter le JSON renvoyé.
+    """
+    response = requests.get(url, params=params)
     response.raise_for_status()
-    return response.json()["visitors"]
+    return response.json()
+
+
+def fetch_visitors(day: date) -> int:
+    """Interroge NOTRE API (le fournisseur simulé) pour un jour donné."""
+    data = query_api(API_URL, params={"day": day.isoformat()})
+    return data["visitors"]
 
 
 def main():
