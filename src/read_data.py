@@ -6,6 +6,11 @@ jour de semaine.
 """
 
 import duckdb
+import duckdb
+from pathlib import Path
+
+RAW_DATA_GLOB = "data/raw/*.csv"
+PROCESSED_DIR = Path("data/processed/filtered")
 
 RAW_DATA_GLOB = "data/raw/*.csv"
 
@@ -144,6 +149,34 @@ def add_pct_change():
         ORDER BY date
     """)
 
+def save_to_parquet():
+    """
+    (TRANSFORM DATA 6/7) Sauvegarde la donnée transformée (filtrée +
+    moyenne glissante + pct_change) au format Parquet, dans
+    data/processed/filtered/.
+
+    Le Parquet est un format de stockage "colonne" (columnar), à
+    l'opposé du CSV qui est un format "ligne" : au lieu de stocker
+    chaque ligne les unes après les autres, Parquet stocke chaque
+    COLONNE séparément, avec son propre type et sa propre compression.
+    Deux conséquences concrètes :
+    - Les fichiers sont nettement plus légers (compression bien plus
+      efficace quand on compresse une colonne de valeurs homogènes
+      plutôt que du texte mélangé ligne par ligne).
+    - La lecture est plus rapide dès qu'on n'a besoin que de certaines
+      colonnes : lire uniquement "pct_change" sur un Parquet ne charge
+      QUE cette colonne, alors qu'un CSV doit être lu ligne par ligne
+      en entier, colonnes inutiles comprises.
+    C'est le format standard utilisé en entreprise pour stocker de la
+    donnée déjà nettoyée, entre l'étape de transformation et l'étape
+    d'analyse/visualisation.
+    """
+    PROCESSED_DIR.mkdir(parents=True, exist_ok=True)
+    final_table = add_pct_change()
+    output_path = PROCESSED_DIR / "visitors_transformed.parquet"
+    final_table.write_parquet(str(output_path))
+    return output_path
+
 
 def main():
     table = read_raw_data()
@@ -172,6 +205,10 @@ def main():
 
     print("\nÉcart en pourcentage à cette moyenne (pct_change) :")
     print(add_pct_change())
+
+    print("\nSauvegarde au format Parquet dans data/processed/filtered/ :")
+    parquet_path = save_to_parquet()
+    print(f"Fichier écrit : {parquet_path}")
 
 
 if __name__ == "__main__":
