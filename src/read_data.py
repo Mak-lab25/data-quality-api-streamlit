@@ -18,15 +18,35 @@ def read_raw_data():
     return duckdb.sql(f"SELECT * FROM read_csv_auto('{RAW_DATA_GLOB}')")
 
 
+def daily_traffic():
+    """
+    Regroupe la donnée heure par heure en trafic journalier :
+    un GROUP BY sur la date, avec un SUM du nombre de visiteurs.
+    C'est tout l'intérêt d'avoir généré la donnée heure par heure au
+    départ : elle peut ensuite être agrégée à n'importe quel niveau
+    (jour, semaine, mois...) selon le besoin.
+    """
+    return duckdb.sql(f"""
+        SELECT
+            date,
+            SUM(nombre_visiteurs) AS total_visiteurs
+        FROM read_csv_auto('{RAW_DATA_GLOB}')
+        GROUP BY date
+        ORDER BY date
+    """)
+
+
 def main():
     table = read_raw_data()
-
     print(table)
 
     row_count = duckdb.sql(
         f"SELECT COUNT(*) AS total FROM read_csv_auto('{RAW_DATA_GLOB}')"
     ).fetchone()[0]
     print(f"Total de lignes lues (tous fichiers confondus) : {row_count}")
+
+    print("\nTrafic journalier (GROUP BY date + SUM) :")
+    print(daily_traffic())
 
 
 if __name__ == "__main__":
