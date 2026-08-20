@@ -23,6 +23,14 @@ def get_capteurs(df):
     return sorted(df["id_capteur"].unique())
 
 
+def filter_by_capteur(df, capteur_id):
+    """
+    (C) Filtre le DataFrame pour ne garder que les lignes du capteur
+    sélectionné.
+    """
+    return df[df["id_capteur"] == capteur_id]
+
+
 def main():
     st.set_page_config(page_title="Trafic e-commerce", layout="wide")
     st.title("📊 Trafic e-commerce — Tableau de bord")
@@ -33,7 +41,10 @@ def main():
     capteurs = get_capteurs(df)
     selected_capteur = st.selectbox("Choisir un capteur :", capteurs)
 
-    st.write(f"Capteur sélectionné : **{selected_capteur}**")
+    # (C) Affichage des données filtrées pour le capteur sélectionné
+    st.subheader(f"Données pour le capteur {selected_capteur}")
+    filtered_df = filter_by_capteur(df, selected_capteur)
+    st.dataframe(filtered_df)
 
 
 if __name__ == "__main__":
