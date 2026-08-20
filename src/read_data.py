@@ -116,6 +116,34 @@ def add_same_weekday_rolling_average():
         ORDER BY date
     """)
 
+def add_pct_change():
+    """
+    (TRANSFORM DATA 5/7) Ajoute une colonne pct_change : l'écart en
+    pourcentage entre le trafic du jour et la moyenne glissante des 4
+    dernières occurrences du même jour de semaine (calculée à l'étape
+    précédente, moyenne_4_derniers_memes_jours).
+
+        pct_change = (total_visiteurs - moyenne) / moyenne * 100
+
+    NULLIF(moyenne, 0) évite une division par zéro si la moyenne calculée
+    était nulle (cas limite, mais bonne pratique défensive en SQL).
+    Quand la moyenne elle-même est NULL (pas encore d'historique pour ce
+    jour de semaine), pct_change est naturellement NULL aussi : on ne
+    peut pas mesurer un écart à une moyenne qui n'existe pas encore.
+    """
+    with_avg = add_same_weekday_rolling_average()
+    return duckdb.sql("""
+        SELECT
+            *,
+            ROUND(
+                (total_visiteurs - moyenne_4_derniers_memes_jours)
+                / NULLIF(moyenne_4_derniers_memes_jours, 0) * 100,
+                1
+            ) AS pct_change
+        FROM with_avg
+        ORDER BY date
+    """)
+
 
 def main():
     table = read_raw_data()
@@ -141,6 +169,9 @@ def main():
 
     print("\nMoyenne glissante sur les 4 derniers mêmes jours de la semaine :")
     print(add_same_weekday_rolling_average())
+
+    print("\nÉcart en pourcentage à cette moyenne (pct_change) :")
+    print(add_pct_change())
 
 
 if __name__ == "__main__":
