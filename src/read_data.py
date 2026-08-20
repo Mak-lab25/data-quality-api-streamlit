@@ -1,7 +1,8 @@
 """
 Script de transformation : lit l'ensemble des fichiers CSV bruts stockés
 dans data/raw/ (un fichier par mois), les combine, les agrège par jour,
-et filtre les lignes non fiables.
+filtre les lignes non fiables, et calcule une moyenne glissante par
+jour de semaine.
 """
 
 import duckdb
@@ -58,6 +59,64 @@ def filter_valid_rows():
     """)
 
 
+def daily_traffic_clean():
+    """
+    Recalcule le trafic journalier, mais cette fois à partir des lignes
+    valides uniquement (issues de filter_valid_rows), en conservant
+    id_capteur / id_magasin : ce sont les dimensions dont on aura besoin
+    pour la window function de l'étape suivante (un même capteur/lieu
+    peut avoir plusieurs séries de trafic à comparer entre elles).
+    """
+    valid_rows = filter_valid_rows()
+    return duckdb.sql("""
+        SELECT
+            date,
+            id_capteur,
+            id_magasin,
+            SUM(nombre_visiteurs) AS total_visiteurs
+        FROM valid_rows
+        GROUP BY date, id_capteur, id_magasin
+        ORDER BY date
+    """)
+
+
+def add_same_weekday_rolling_average():
+    """
+    (TRANSFORM DATA 4/7) Window function : pour chaque ligne (un jour,
+    un capteur, un lieu), calcule la moyenne du trafic sur les 4
+    dernières occurrences du MÊME jour de la semaine (par exemple, pour
+    un jeudi donné : la moyenne des 4 jeudis précédents), par capteur et
+    par lieu.
+
+    PARTITION BY isole chaque groupe (jour de semaine x lieu x capteur)
+    pour que la fenêtre ne mélange jamais un jeudi avec un mardi. La
+    fenêtre "ROWS BETWEEN 4 PRECEDING AND 1 PRECEDING" ne regarde que les
+    4 lignes précédentes DANS CE GROUPE, sans compter la ligne courante :
+    on compare chaque jour à son historique, pas à lui-même.
+
+    Tant qu'on n'a pas encore 4 occurrences précédentes du même jour de
+    semaine dans l'historique (ex. le tout premier jeudi observé), la
+    moyenne est calculée sur les occurrences disponibles, voire NULL s'il
+    n'y en a aucune : c'est un comportement normal en début de période.
+    """
+    daily = daily_traffic_clean()
+    return duckdb.sql("""
+        SELECT
+            date,
+            dayname(date) AS jour_semaine,
+            id_capteur,
+            id_magasin,
+            total_visiteurs,
+            AVG(total_visiteurs) OVER (
+                PARTITION BY dayname(date), id_magasin, id_capteur
+                ORDER BY date
+                ROWS BETWEEN 4 PRECEDING AND 1 PRECEDING
+            ) AS moyenne_4_derniers_memes_jours
+        FROM daily
+        ORDER BY date
+    """)
+
+
 def main():
     table = read_raw_data()
     print(table)
@@ -74,10 +133,14 @@ def main():
     valid_rows = filter_valid_rows()
     print(valid_rows)
 
+    total_rows = row_count
     valid_count = duckdb.sql("SELECT COUNT(*) FROM valid_rows").fetchone()[0]
-    print(f"Lignes de départ : {row_count}")
+    print(f"Lignes de départ : {total_rows}")
     print(f"Lignes valides conservées : {valid_count}")
-    print(f"Lignes supprimées : {row_count - valid_count}")
+    print(f"Lignes supprimées : {total_rows - valid_count}")
+
+    print("\nMoyenne glissante sur les 4 derniers mêmes jours de la semaine :")
+    print(add_same_weekday_rolling_average())
 
 
 if __name__ == "__main__":
