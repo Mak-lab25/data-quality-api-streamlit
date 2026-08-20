@@ -1,7 +1,7 @@
 """
 Script de transformation : lit l'ensemble des fichiers CSV bruts stockés
-dans data/raw/ (un fichier par mois) et affiche le résultat sous forme
-de table unique, grâce à DuckDB.
+dans data/raw/ (un fichier par mois), les combine, les agrège par jour,
+et filtre les lignes non fiables.
 """
 
 import duckdb
@@ -36,6 +36,28 @@ def daily_traffic():
     """)
 
 
+def filter_valid_rows():
+    """
+    (TRANSFORM DATA 3/7) Filtre les lignes non fiables, sur deux critères
+    précis seulement :
+    - id_capteur manquant (NULL)
+    - unite incohérente (tout ce qui n'est pas exactement "visiteurs",
+      ce qui exclut au passage les unités vides/NULL sans condition
+      supplémentaire : en SQL, NULL = 'visiteurs' n'est jamais vrai)
+
+    Volontairement, on ne filtre PAS ici les valeurs de nombre_visiteurs
+    jugées trop faibles ou trop fortes : la détection des valeurs
+    aberrantes viendra dans une étape ultérieure, séparée de ce
+    nettoyage basique.
+    """
+    return duckdb.sql(f"""
+        SELECT *
+        FROM read_csv_auto('{RAW_DATA_GLOB}')
+        WHERE id_capteur IS NOT NULL
+          AND unite = 'visiteurs'
+    """)
+
+
 def main():
     table = read_raw_data()
     print(table)
@@ -47,6 +69,15 @@ def main():
 
     print("\nTrafic journalier (GROUP BY date + SUM) :")
     print(daily_traffic())
+
+    print("\nFiltrage des lignes non fiables (id_capteur manquant / unite incohérente) :")
+    valid_rows = filter_valid_rows()
+    print(valid_rows)
+
+    valid_count = duckdb.sql("SELECT COUNT(*) FROM valid_rows").fetchone()[0]
+    print(f"Lignes de départ : {row_count}")
+    print(f"Lignes valides conservées : {valid_count}")
+    print(f"Lignes supprimées : {row_count - valid_count}")
 
 
 if __name__ == "__main__":
