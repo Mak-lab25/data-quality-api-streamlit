@@ -4,6 +4,7 @@ lu directement depuis le fichier Parquet avec DuckDB.
 """
 
 import duckdb
+import plotly.express as px
 import streamlit as st
 
 PARQUET_PATH = "data/processed/filtered/visitors_transformed.parquet"
@@ -31,6 +32,22 @@ def filter_by_capteur(df, capteur_id):
     return df[df["id_capteur"] == capteur_id]
 
 
+def create_daily_chart(df):
+    """
+    (D) Construit une courbe (Plotly) du trafic journalier pour le
+    capteur sélectionné : une valeur par date, triée chronologiquement.
+    """
+    fig = px.line(
+        df.sort_values("date"),
+        x="date",
+        y="total_visiteurs",
+        markers=True,
+        title="Trafic journalier",
+    )
+    fig.update_layout(xaxis_title="Date", yaxis_title="Nombre de visiteurs")
+    return fig
+
+
 def main():
     st.set_page_config(page_title="Trafic e-commerce", layout="wide")
     st.title("📊 Trafic e-commerce — Tableau de bord")
@@ -45,6 +62,11 @@ def main():
     st.subheader(f"Données pour le capteur {selected_capteur}")
     filtered_df = filter_by_capteur(df, selected_capteur)
     st.dataframe(filtered_df)
+
+    # (D) Courbe du trafic journalier, avec Plotly
+    st.subheader("Courbe du trafic journalier")
+    fig = create_daily_chart(filtered_df)
+    st.plotly_chart(fig, use_container_width=True)
 
 
 if __name__ == "__main__":
